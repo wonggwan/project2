@@ -1,6 +1,8 @@
 name: Build Nuitka Wheels
 
-on: [push, workflow_dispatch]
+on:
+  push:
+  workflow_dispatch:
 
 jobs:
   build_wheels:
@@ -18,25 +20,36 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install cibuildwheel and Nuitka
+      - name: Install cibuildwheel
         run: |
-          python -m pip install cibuildwheel nuitka numpy
+          python -m pip install --upgrade pip
+          pip install cibuildwheel
 
-      - name: Build wheels (clearly configured)
+      - name: Build wheels with cibuildwheel
         env:
-          CIBW_BUILD: cp36-* cp37-* cp38-* cp39-* cp310-* cp311-*
+          CIBW_BUILD: "cp36-* cp37-* cp38-* cp39-* cp310-* cp311-*"
           CIBW_SKIP: "*-win32 *-manylinux_i686"
           CIBW_BEFORE_BUILD: "pip install numpy nuitka"
           CIBW_ENVIRONMENT: "NUITKA_NOCACHE=1"
           CIBW_BUILD_FRONTEND: "pip"
-          CIBW_BEFORE_ALL_LINUX: "apt-get update && apt-get install -y build-essential python3-dev && python -m pip install --upgrade pip setuptools wheel"
-          CIBW_BEFORE_ALL_MACOS: "brew install llvm && python -m pip install --upgrade pip setuptools wheel"
+          # Correct package installation commands per OS/container:
+          CIBW_BEFORE_ALL_LINUX: >
+            yum install -y gcc gcc-c++ python3-devel && 
+            python -m pip install --upgrade pip setuptools wheel
+          CIBW_BEFORE_ALL_MACOS: >
+            brew install llvm &&
+            python -m pip install --upgrade pip setuptools wheel
+          CIBW_BEFORE_ALL_WINDOWS: >
+            choco install llvm &&
+            python -m pip install --upgrade pip setuptools wheel
+          # Clearly specify architectures:
           CIBW_ARCHS_MACOS: "x86_64 arm64"
           CIBW_ARCHS_LINUX: "x86_64"
         run: |
           cibuildwheel --output-dir wheelhouse
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload built wheels (clearly)
+        uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}
+          name: nuitka-wheels-${{ matrix.os }}
           path: wheelhouse/*.whl
